@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup as Soup
 from dotenv import load_dotenv
 from os import environ, remove
 from sqlite3 import connect
-from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -152,18 +151,14 @@ def main():
 	""""""
 	# Fetch all plex users for easy lookup
 	plex_users = {u.id: u for u in fetch_plex_users()}
-	# print(plex_users)
 	# Fetch all the tautulli users to map plex users
 	tautulli_users = fetch_tautulli_users()
 	tautulli_users_by_username = {t.username: t for t in tautulli_users}
 	tautulli_users_by_user_id = {t.user_id: t for t in tautulli_users}
-	# print(tautulli_users)
 	# Fetch all plex devices for easy lookup
 	devices = {d.id: d for d in fetch_plex_devices()}
-	# print(devices)
 	# Fetch all libraries
 	libraries = {l.key: l for l in fetch_plex_libraries()}
-	# print(libraries)
 	# Fetch the following based on the libraries
 	medias: list[PlexMedia] = []
 	for library in libraries.values():
@@ -175,7 +170,6 @@ def main():
 		if library.type_ == 'show':
 			data = fetch_show_media(library)
 			medias.extend(data)
-	# print(medias)
 	media_dict: dict[str, PlexMedia] = {m.rating_key: m for m in medias}
 	# Fetch all plex session history
 	history = fetch_plex_history()
