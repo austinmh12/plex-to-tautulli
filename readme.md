@@ -2,13 +2,13 @@
 A Python script to convert Plex history from the API to the Tautulli database import format. Born out of spite of all the reddit posts and the FAQ saying it can't be done. 
 
 ## Per the FAQ
-**Q: Can Tautulli import history from before it was installed?**
+> _**Q: Can Tautulli import history from before it was installed?**_
+>
+> _**A:** No, unless you had PlexWatch or Plexivity installed previously and import the database, Tautulli can only start logging history after it is installed._
+>
+> _Although Plex does keep some information in their database, it is nowhere near detailed enough to build the level of history that Tautulli keeps, the above tools keep enough information to build partial records from._
 
-**A:** No, unless you had PlexWatch or Plexivity installed previously and import the database, Tautulli can only start logging history after it is installed.
-
-Although Plex does keep some information in their database, it is nowhere near detailed enough to build the level of history that Tautulli keeps, the above tools keep enough information to build partial records from.
-
-While it's true that Plex doesn't store as much detailed information as Tautulli can use, it gives enough to give you a general idea of what was going on before you had Tautulli installed. 
+While it's true that Plex doesn't store as much detailed information as Tautulli can use, it gives enough to give you a _**general**_ idea of what was going on before you had Tautulli installed. 
 
 ### Missing Information
 As long as you don't care about the following information, then you should be all set to use this:
@@ -16,9 +16,9 @@ As long as you don't care about the following information, then you should be al
 - Product used to watch
 - Pauses
 - Specific stream information
-- - Whether it was LAN, WAN, etc
-- - Whether it was direct, copy, or transcode
-- - The video and audio specific bit rates, transcode selections
+	- Whether it was LAN, WAN, etc
+	- Whether it was direct, copy, or transcode
+	- The video and audio specific bit rates, transcode selections
 - If the stream was through SSH or not
 
 ### Accessible and Accurate Information
@@ -28,9 +28,9 @@ What it will give you is:
 - Platform
 - Player
 - Basic media metadata
-- - Title
-- - Parent Title
-- - Grandparent Title
+	- Title
+	- Parent Title
+	- Grandparent Title
 - Start Time
 
 ### Accessible and Inaccurate Information
