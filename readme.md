@@ -38,9 +38,12 @@ This script makes the assumption that media was started and watched all the way 
 
 ## Setup
 Requirements:
-- Python3.12
+- Python3.12 / Python3.14
 
 Install requirements with `python -m pip install -r requirements.txt`
+
+#### Plex API Key - https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/ 
+#### Tautulli API Key - Go into Tautulli Settings > Web Interface > Show Advanced > API Key is at the bottom
 
 ### Environment Variables
 ```env
@@ -51,6 +54,9 @@ TAUTULLI_URL=192.168.1.1
 TAUTULLI_PORT=8181
 TAUTULLI_API_KEY=TAUTULLI_API_KEY
 ```
+#### If you don't wish to add ENV variables, you can edit the config.ini files and add the values there instead. 
+
+
 
 ## Running
 The script can be ran with `plex_history_to_tautulli.py`. This will fetch User, Device, Library, Media, and History data from Plex, and User data from Tautulli. This information is used to build as much data as possible for the Tautulli database import.

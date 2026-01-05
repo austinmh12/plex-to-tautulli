@@ -5,12 +5,21 @@ from bs4 import BeautifulSoup as Soup
 from dotenv import load_dotenv
 from os import environ, remove
 from sqlite3 import connect
+import configparser as conf
 
 load_dotenv()
 
-PLEX_URL = f'http://{environ["PLEX_URL"]}:{environ["PLEX_PORT"]}'
-PLEX_TOKEN = f'X-Plex-Token={environ["PLEX_API_KEY"]}'
-TAUTULLI_URL = f'http://{environ["TAUTULLI_URL"]}:{environ["TAUTULLI_PORT"]}/api/v2?apikey={environ["TAUTULLI_API_KEY"]}'
+try:
+    PLEX_URL = f'http://{environ["PLEX_URL"]}:{environ["PLEX_PORT"]}'
+    PLEX_TOKEN = f'X-Plex-Token={environ["PLEX_API_KEY"]}'
+    TAUTULLI_URL = f'http://{environ["TAUTULLI_URL"]}:{environ["TAUTULLI_PORT"]}/api/v2?apikey={environ["TAUTULLI_API_KEY"]}'
+except KeyError:
+    config = conf.ConfigParser()
+    config.read('config.ini')
+    PLEX_URL = f'http://{config["DEFAULT"]["PLEX_URL"]}:{config["DEFAULT"]["PLEX_PORT"]}'
+    PLEX_TOKEN = f'X-Plex-Token={config["DEFAULT"]["PLEX_API_KEY"]}'
+    TAUTULLI_URL = f'http://{config["DEFAULT"]["TAUTULLI_URL"]}:{config["DEFAULT"]["TAUTULLI_PORT"]}/api/v2?apikey={config["DEFAULT"]["TAUTULLI_API_KEY"]}'
+
 
 class TautulliUser:
 	def __init__(self, user_id: int, username: str, **kwargs) -> None:
@@ -355,7 +364,10 @@ def insert_history(histories: list[tuple[PlexHistory, PlexMedia, PlexDevice, Tau
 	db.close()
 
 def init_db():
-	remove('plex_to_tautulli.db')
+	try:
+		remove('plex_to_tautulli.db')
+	except OSError:
+		pass
 	db = connect('plex_to_tautulli.db', isolation_level=None, autocommit=True)
 	db.execute('CREATE TABLE if not exists session_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reference_id INTEGER, started INTEGER, stopped INTEGER, rating_key INTEGER, user_id INTEGER, user TEXT, ip_address TEXT, paused_counter INTEGER DEFAULT 0, player TEXT, product TEXT, product_version TEXT, platform TEXT, platform_version TEXT, profile TEXT, machine_id TEXT, bandwidth INTEGER, location TEXT, quality_profile TEXT, secure INTEGER, relayed INTEGER, parent_rating_key INTEGER, grandparent_rating_key INTEGER, media_type TEXT, section_id INTEGER, view_offset INTEGER DEFAULT 0);', ())
 	db.execute('CREATE INDEX if not exists idx_session_history_media_type ON session_history (media_type);', ())
