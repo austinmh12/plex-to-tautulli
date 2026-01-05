@@ -38,9 +38,12 @@ This script makes the assumption that media was started and watched all the way 
 
 ## Setup
 Requirements:
-- Python3.12
+- Python3.12 / Python3.14
 
 Install requirements with `python -m pip install -r requirements.txt`
+
+#### Plex API Key - https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/ 
+#### Tautulli API Key - Go into Tautulli Settings > Web Interface > Show Advanced > API Key is at the bottom
 
 ### Environment Variables
 ```env
