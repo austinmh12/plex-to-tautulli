@@ -191,12 +191,21 @@ def main():
 			print(f'No rating key for {hist.history_key}, skipping')
 			continue
 		media = media_dict.get(hist.rating_key)
+		if media is None:
+			print(f'No media in library for {hist.title} ({hist.rating_key}), skipping')
+			continue
 		# Find the matching device
 		device = devices.get(hist.device_id)
+		if device is None:
+			print(f'No device {hist.device_id} for {hist.title}, skipping')
+			continue
 		# Find the matching user and map to tautulli ID
 		user = tautulli_users_by_user_id.get(int(hist.account_id))
 		if user is None:
 			plex_user = plex_users.get(hist.account_id)
+			if plex_user is None:
+				print(f'Unable to find plex account {hist.account_id} for {hist.title}, skipping')
+				continue
 			tautulli_user = tautulli_users_by_username.get(plex_user.name)
 			if tautulli_user is None:
 				print(f'Unable to find user for {hist.title}, skipping')
@@ -204,7 +213,6 @@ def main():
 				continue
 			user = tautulli_user
 		inserts.append((hist, media, device, user))
-	insert_history(inserts)
 
 def fetch_plex_users() -> list[PlexUser]:
 	"""Fetches all the plex users in the plex server."""
