@@ -6,8 +6,11 @@ from dotenv import load_dotenv
 from os import environ, remove
 from sqlite3 import connect
 import configparser as conf
+import argparse
 
 load_dotenv()
+
+DB_FILE = 'plex_to_tautulli.db'
 
 try:
     PLEX_URL = f'http://{environ["PLEX_URL"]}:{environ["PLEX_PORT"]}'
@@ -40,10 +43,10 @@ class PlexUser:
 		self.id = id
 		self.key = key
 		self.name = name
-	
+
 	def __repr__(self) -> str:
 		return f'PlexUser(id={self.id}, name={self.name})'
-	
+
 class PlexDevice:
 	def __init__(
 		self,
@@ -58,7 +61,7 @@ class PlexDevice:
 
 	def __repr__(self) -> str:
 		return f'PlexDevice(id={self.id}, name={self.name}, platform={self.platform})'
-	
+
 class PlexLibrary:
 	def __init__(
 		self,
@@ -76,7 +79,7 @@ class PlexLibrary:
 
 	def __repr__(self) -> str:
 		return f'PlexLibrary(key={self.key}, title={self.title}, type={self.type_})'
-	
+
 class PlexMedia:
 	"""Represents either a Movie, or an episode from a TV season from a TV show"""
 	def __init__(
@@ -156,8 +159,10 @@ class PlexHistory:
 		self.account_id: str | None = kwargs.get('accountID')
 		self.device_id: str | None = kwargs.get('deviceID')
 
-def main():
+def main(mode: str = 'both'):
 	""""""
+	want_video = mode in ('both', 'video')
+	want_music = mode in ('both', 'music')
 	# Fetch all plex users for easy lookup
 	plex_users = {u.id: u for u in fetch_plex_users()}
 	# Fetch all the tautulli users to map plex users
@@ -172,16 +177,20 @@ def main():
 	medias: list[PlexMedia] = []
 	for library in libraries.values():
 		# Fetch all plex movies
-		if library.type_ == 'movie':
+		if want_video and library.type_ == 'movie':
 			data = fetch_movie_media(library)
 			medias.extend(data)
 		# Fetch all plex tv shows
-		if library.type_ == 'show':
+		if want_video and library.type_ == 'show':
 			data = fetch_show_media(library)
+			medias.extend(data)
+		# Fetch all plex music
+		if want_music and library.type_ == 'artist':
+			data = fetch_music_media(library)
 			medias.extend(data)
 	media_dict: dict[str, PlexMedia] = {m.rating_key: m for m in medias}
 	# Fetch all plex session history
-	history = fetch_plex_history()
+	history = fetch_plex_history(want_video, want_music)
 	# For each session history entry
 	inserts: list[tuple[PlexHistory, PlexMedia, PlexDevice, TautulliUser]] = []
 	for hist in history:
@@ -213,6 +222,7 @@ def main():
 				continue
 			user = tautulli_user
 		inserts.append((hist, media, device, user))
+	insert_history(inserts)
 
 def fetch_plex_users() -> list[PlexUser]:
 	"""Fetches all the plex users in the plex server."""
@@ -282,15 +292,47 @@ def fetch_show_media(lib: PlexLibrary) -> list[PlexMedia]:
 				medias.append(media)
 	return medias
 
-def fetch_plex_history() -> list[PlexHistory]:
+def fetch_music_media(lib: PlexLibrary) -> list[PlexMedia]:
+	"""Fetches all the tracks in each album of each artist."""
+	resp = r.get(f'{PLEX_URL}/library/sections/{lib.section_id}/all?{PLEX_TOKEN}&limit=100000&includeGuids=true')
+	xml = Soup(resp.text, 'xml')
+	medias = []
+	for artist in xml('Directory'):
+		if 'ratingKey' not in artist.attrs:
+			continue
+		resp = r.get(f'{PLEX_URL}/library/metadata/{artist.attrs["ratingKey"]}/children?{PLEX_TOKEN}')
+		album_xml = Soup(resp.text, 'xml')
+		albums = [a for a in album_xml('Directory') if 'ratingKey' in a.attrs]
+		for album in albums:
+			resp = r.get(f'{PLEX_URL}/library/metadata/{album.attrs["ratingKey"]}/children?{PLEX_TOKEN}')
+			track_xml = Soup(resp.text, 'xml')
+			for track in track_xml('Track'):
+				media_dict = {}
+				media_dict.update(track.attrs)
+				if track.Media is not None:
+					media_dict.update(track.Media.attrs)
+				media_dict['genres'] = ';'.join([g.attrs['tag'] for g in artist('Genre')])
+				media_dict['lastViewedAt'] = artist.attrs.get('lastViewedAt', '')
+				media_dict['studio'] = album.attrs.get('studio', '')
+				media_dict['year'] = album.attrs.get('year', '')
+				media = PlexMedia(**media_dict)
+				medias.append(media)
+	return medias
+
+def fetch_plex_history(want_video: bool = True, want_music: bool = True) -> list[PlexHistory]:
 	"""Fetches all the history from the plex server."""
 	resp = r.get(f'{PLEX_URL}/status/sessions/history/all?{PLEX_TOKEN}&limit=100000')
 	xml = Soup(resp.text, 'xml')
-	return [PlexHistory(**h.attrs) for h in xml('Video')]
+	tags = []
+	if want_video:
+		tags.append('Video')
+	if want_music:
+		tags.append('Track')
+	return [PlexHistory(**h.attrs) for h in xml(tags)]
 
 def insert_history(histories: list[tuple[PlexHistory, PlexMedia, PlexDevice, TautulliUser]]):
 	"""Inserts the histories into the plex_to_tautulli.db file"""
-	db = connect('plex_to_tautulli.db', isolation_level=None, autocommit=True)
+	db = connect(DB_FILE, isolation_level=None, autocommit=True)
 	for i, (history, media, device, user) in enumerate(histories, start=1):
 		db.execute(
 			'''
@@ -303,7 +345,7 @@ def insert_history(histories: list[tuple[PlexHistory, PlexMedia, PlexDevice, Tau
 			?,?,?,?,?,?,?,?,?,?);
 			''',
 			(
-				history.rating_key, 
+				history.rating_key,
 				media.parent_rating_key,
 				media.grandparent_rating_key,
 				media.title,
@@ -340,7 +382,7 @@ def insert_history(histories: list[tuple[PlexHistory, PlexMedia, PlexDevice, Tau
 		)
 		db.execute(
 			'''
-			insert into session_history_media_info (rating_key, duration, container, bitrate, width, height, 
+			insert into session_history_media_info (rating_key, duration, container, bitrate, width, height,
 			aspect_ratio) values (?,?,?,?,?,?,?);
 			''',
 			(media.rating_key, media.duration, media.container, media.bitrate, media.width, media.height, media.aspect_ratio)
@@ -348,7 +390,7 @@ def insert_history(histories: list[tuple[PlexHistory, PlexMedia, PlexDevice, Tau
 		db.execute(
 			'''
 			insert into session_history (reference_id, started, stopped, rating_key, user_id, user, paused_counter,
-			player, platform, parent_rating_key, grandparent_rating_key, media_type, section_id, view_offset) values 
+			player, platform, parent_rating_key, grandparent_rating_key, media_type, section_id, view_offset) values
 			(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			''',
 			(
@@ -373,10 +415,10 @@ def insert_history(histories: list[tuple[PlexHistory, PlexMedia, PlexDevice, Tau
 
 def init_db():
 	try:
-		remove('plex_to_tautulli.db')
+		remove(DB_FILE)
 	except OSError:
 		pass
-	db = connect('plex_to_tautulli.db', isolation_level=None, autocommit=True)
+	db = connect(DB_FILE, isolation_level=None, autocommit=True)
 	db.execute('CREATE TABLE if not exists session_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reference_id INTEGER, started INTEGER, stopped INTEGER, rating_key INTEGER, user_id INTEGER, user TEXT, ip_address TEXT, paused_counter INTEGER DEFAULT 0, player TEXT, product TEXT, product_version TEXT, platform TEXT, platform_version TEXT, profile TEXT, machine_id TEXT, bandwidth INTEGER, location TEXT, quality_profile TEXT, secure INTEGER, relayed INTEGER, parent_rating_key INTEGER, grandparent_rating_key INTEGER, media_type TEXT, section_id INTEGER, view_offset INTEGER DEFAULT 0);', ())
 	db.execute('CREATE INDEX if not exists idx_session_history_media_type ON session_history (media_type);', ())
 	db.execute('CREATE INDEX if not exists idx_session_history_media_type_stopped ON session_history (media_type, stopped ASC);', ())
@@ -400,5 +442,13 @@ def init_db():
 	db.close()
 
 if __name__ == "__main__":
+	parser = argparse.ArgumentParser(description='Convert Plex watch history into a Tautulli-importable database.')
+	parser.add_argument('--mode', choices=['both', 'video', 'music'], default='both',
+		help="Which history to import: 'video' (movies and shows), 'music' (tracks), or 'both'. Default: both.")
+	parser.add_argument('--output', default=None,
+		help='Output database filename. Defaults to plex_to_tautulli_<mode>.db, or plex_to_tautulli.db for both.')
+	args = parser.parse_args()
+	DB_FILE = args.output or ('plex_to_tautulli.db' if args.mode == 'both' else f'plex_to_tautulli_{args.mode}.db')
+	print(f'Mode: {args.mode}  ->  {DB_FILE}')
 	init_db()
-	main()
+	main(args.mode)
