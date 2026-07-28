@@ -63,15 +63,53 @@ The script can be ran with `plex_history_to_tautulli.py`. This will fetch User, 
 
 Once the script is complete, there will be a `plex_to_tautulli.db` file in the folder. This can then be used to upload via the Tautulli Import & Backups menu.
 
+### Options
+
+#### `--mode {both,video,music}`
+Selects which history to import. Defaults to `both`.
+
+| Mode | Libraries fetched | History entries read |
+| --- | --- | --- |
+| `both` | `movie`, `show`, `artist` | `<Video>` and `<Track>` |
+| `video` | `movie`, `show` | `<Video>` only |
+| `music` | `artist` | `<Track>` only |
+
+```sh
+python plex_history_to_tautulli.py --mode music
+```
+
+This is useful if you have already imported one type and don't want to duplicate it. Tautulli's import merges rows rather than replacing them, so re-importing history you already have will double the play counts and watch time for that media.
+
+Restricting the mode also skips fetching the libraries you don't need, which saves a significant amount of time. Music libraries in particular require one request per artist plus one request per album, so a large collection can take a while.
+
+#### `--output FILENAME`
+Sets the output database filename. By default the file is named after the mode:
+
+| Mode | Default filename |
+| --- | --- |
+| `both` | `plex_to_tautulli.db` |
+| `video` | `plex_to_tautulli_video.db` |
+| `music` | `plex_to_tautulli_music.db` |
+
+Separate filenames per mode mean a `--mode music` run will not overwrite the results of an earlier `--mode video` run.
+
+**Note:** the output file is deleted and rebuilt at the start of every run. Don't point `--output` at a file you want to keep.
+
 ![tautulliImport](docs/tautulliImport.png)
 
 # Known Issues/Lack of Features
 
 ## Library Support
-This currently only support `movie` and `show` library types.
+This currently supports `movie`, `show`, and `artist` (music) library types. Other types, such as `photo`, are not supported.
+
+Music tracks are imported with a `full_title` of `Artist - Track`, matching Tautulli's own formatting, and a `media_type` of `track`.
 
 ## Missing Media
 Media that has been deleted from the Plex server or is just missing metadata will not be included. These entries are usually missing the `ratingKey` from the Plex History API call. These can be verified by going to `http://PLEX_URL:PLEX_PORT/status/sessions/history/all?X-Plex-Token=PLEX_API_KEY&limit=100000`
+
+This affects an entire library at once if that library has been deleted and rebuilt. Plex keeps the play events but drops the `ratingKey` from all of them, so history from the old library is not recoverable even though the same files are still on disk under a new section. It's worth checking the counts per `librarySectionID` in the URL above before a long run, so you know what to expect.
+
+Entries whose `ratingKey` is present but no longer resolves to anything in a fetched library are also skipped, as are entries with an unknown device or an unknown Plex account. Each of these prints a message naming the entry.
 
 ## SSH Support
 This script appends `http://` to the environment variable `PLEX_URL` and thus only supports `HTTP` at the moment
